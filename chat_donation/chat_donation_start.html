@@ -5,9 +5,7 @@
     <title>포인트 적립 백그라운드 모듈</title>
 </head>
 <body>
-    <!-- 1. 상위 폴더의 공용 설정 파일 참조 -->
     <script src="../ddubot_config.js"></script>
-    <!-- 2. 같은 폴더 내의 적립 로직 파일 참조 -->
     <script src="./chat_donation.js"></script>
 </body>
 </html>
@@ -15,13 +13,8 @@
 
 ---
 
-### 2. `chat_donation/chat_donation.js`
-외부 API 주소와 전역 설정을 그대로 사용하므로 기존 로직과 동일하게 작동하는 적립 스크립트 파일입니다[cite: 2, 4].
-
+### 2. `chat_donation/chat_donation.js` 전체 코드 (이 내용만 그대로 넣으세요)
 ```javascript
-// chat_donation/chat_donation.js
-
-// 1. 포인트 은행 및 뚜봇 연결 설정
 const BANK_API_URL = "https://admirable-custard-8f7713.netlify.app/api/bank";
 let chatWebSocket = null;
 const chatWsUri = "wss://chzzk-data.ddutto.com/api/dataSocket/?EIO=4&transport=websocket";
@@ -32,11 +25,9 @@ const chatAuthState = {
     authChk: false
 };
 
-// 시청자별 채팅 적립 쿨타임 관리용 Map (key: userId, value: 만료 타임스탬프)
 const userChatCooldowns = new Map();
-const CHAT_COOLDOWN_MS = 60 * 1000; // 60초
+const CHAT_COOLDOWN_MS = 60 * 1000;
 
-// 2. 넷리파이 포인트 은행 서버로 통신하는 함수
 async function sendToBank(userId, userName, action, amount, reason) {
     try {
         const response = await fetch(BANK_API_URL, {
@@ -45,7 +36,7 @@ async function sendToBank(userId, userName, action, amount, reason) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                action: action, // "earn" 또는 "spend"
+                action: action,
                 userId: userId,
                 amount: amount
             })
@@ -64,7 +55,6 @@ async function sendToBank(userId, userName, action, amount, reason) {
     }
 }
 
-// 3. 뚜봇 웹소켓 초기화 및 실시간 데이터 수신 처리
 function initChatDonationSystem() {
     chatWebSocket = new WebSocket(chatWsUri);
     
@@ -95,7 +85,6 @@ function initChatDonationSystem() {
 
                     let purpose = rcvData[1].split(':')[1];
                     
-                    // --- 채팅 규칙 처리 ---
                     if (purpose === 'chat') {
                         let chatInfo = JSON.parse(rcvData[2]);
                         let profile = JSON.parse(chatInfo.profile);
@@ -109,14 +98,11 @@ function initChatDonationSystem() {
                         let now = Date.now();
                         let expireTime = userChatCooldowns.get(userId) || 0;
 
-                        // 60초 쿨타임 검사
                         if (now >= expireTime) {
                             userChatCooldowns.set(userId, now + CHAT_COOLDOWN_MS);
                             sendToBank(userId, userName, "earn", 1, "채팅 참여 적립");
                         }
                     } 
-                    
-                    // --- 후원 규칙 처리 ---
                     else if (purpose === 'donation') {
                         let donateInfo = JSON.parse(rcvData[2]);
                         
@@ -147,6 +133,3 @@ window.addEventListener('DOMContentLoaded', () => {
     initChatDonationSystem();
 });
 ```[cite: 2]
-
-파일들을 위 경로대로 배치하고 푸시한 뒤, 백그라운드 모듈 접속 주소의 경로를 아래와 같이 변경하여 사용하시면 됩니다.
-`[https://admirable-custard-8f7713.netlify.app/chat_donation/chat_donation_start.html](https://admirable-custard-8f7713.netlify.app/chat_donation/chat_donation_start.html)`
