@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>포인트 은행 현황판</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 30px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            text-align: right;
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #00adb5;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #008f95;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background-color: #252525;
+            color: #00adb5;
+        }
+        tr:hover {
+            background-color: #2a2a2a;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏆 포인트 은행 잔액 현황</h1>
+    <div class="btn-group">
+        <button onclick="loadPoints()">새로고침</button>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>순위</th>
+                <th>시청자 (닉네임)</th>
+                <th>보유 포인트</th>
+            </tr>
+        </thead>
+        <tbody id="point-list">
+            <tr><td colspan="3" class="loading">데이터를 불러오는 중...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    async function loadPoints() {
+        const tbody = document.getElementById('point-list');
+        tbody.innerHTML = `<tr><td colspan="3" class="loading">데이터를 불러오는 중...</td></tr>`;
+
+        try {
+            // Netlify 함수 서버로 포인트 데이터 요청
+            const response = await fetch('/api/bank');
+            const data = await response.json();
+
+            // 데이터 구조에 따라 정렬 (포인트가 높은 순서대로)
+            // bank.js 구현 방식에 맞춰 배열 형태로 변환 (예: { 닉네임: 포인트 } 형태일 경우)
+            let users = [];
+            if (Array.isArray(data)) {
+                users = data;
+            } else if (typeof data === 'object' && data !== null) {
+                users = Object.entries(data).map(([name, points]) => ({ name, points }));
+            }
+
+            // 포인트 내림차순 정렬
+            users.sort((a, b) => b.points - a.points);
+
+            if (users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="loading">저장된 포인트 내역이 없습니다.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            users.forEach((user, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${user.name}</td>
+                    <td>${user.points.toLocaleString()} P</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+        } catch (error) {
+            console.error('포인트 데이터를 불러오는 중 오류 발생:', error);
+            tbody.innerHTML = `<tr><td colspan="3" class="loading" style="color: #ff6b6b;">데이터를 불러오지 못했습니다. 서버를 확인해주세요.</td></tr>`;
+        }
+    }
+
+    // 페이지 접속 시 자동 로드
+    loadPoints();
+</script>
+
+</body>
+</html>
