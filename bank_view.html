@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>포인트 은행 현황판</title>
+    <title>포인트 은행 잔액 현황</title>
     <style>
         body {
             font-family: 'Malgun Gothic', sans-serif;
@@ -86,18 +86,32 @@
     </table>
 </div>
 
+<!-- 공용 설정 파일 로드 -->
+<script src="./ddubot_config.js"></script>
 <script>
     async function loadPoints() {
         const tbody = document.getElementById('point-list');
         tbody.innerHTML = `<tr><td colspan="3" class="loading">데이터를 불러오는 중...</td></tr>`;
 
         try {
+            // ddubot_config.js에 정의된 변수 호환성 처리 (userId, channelId 등)
+            const currentUserId = window.userId || window.channelId || window.CHZZK_CHANNEL_ID;
+            
+            let url = '/api/bank';
+            if (currentUserId) {
+                url += `?userId=${encodeURIComponent(currentUserId)}`;
+            }
+
             // Netlify 함수 서버로 포인트 데이터 요청
-            const response = await fetch('/api/bank');
+            const response = await fetch(url);
             const data = await response.json();
 
-            // 데이터 구조에 따라 정렬 (포인트가 높은 순서대로)
-            // bank.js 구현 방식에 맞춰 배열 형태로 변환 (예: { 닉네임: 포인트 } 형태일 경우)
+            // 에러 응답 처리
+            if (data.error) {
+                tbody.innerHTML = `<tr><td colspan="3" class="loading" style="color: #ff6b6b;">오류: ${data.error}</td></tr>`;
+                return;
+            }
+
             let users = [];
             if (Array.isArray(data)) {
                 users = data;
@@ -130,8 +144,10 @@
         }
     }
 
-    // 페이지 접속 시 자동 로드
-    loadPoints();
+    // 페이지 로드 시 자동 실행
+    window.addEventListener('DOMContentLoaded', () => {
+        loadPoints();
+    });
 </script>
 
 </body>
