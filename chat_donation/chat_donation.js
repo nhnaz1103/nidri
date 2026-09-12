@@ -1,6 +1,3 @@
-// js/chat_donation.js
-
-// 1. 포인트 은행 및 뚜봇 연결 설정
 const BANK_API_URL = "https://admirable-custard-8f7713.netlify.app/api/bank";
 let chatWebSocket = null;
 const chatWsUri = "wss://chzzk-data.ddutto.com/api/dataSocket/?EIO=4&transport=websocket";
@@ -11,11 +8,9 @@ const chatAuthState = {
     authChk: false
 };
 
-// 시청자별 채팅 적립 쿨타임 관리용 Map (key: userId, value: 만료 타임스탬프)
 const userChatCooldowns = new Map();
-const CHAT_COOLDOWN_MS = 60 * 1000; // 60초
+const CHAT_COOLDOWN_MS = 60 * 1000;
 
-// 2. 넷리파이 포인트 은행 서버로 통신하는 함수
 async function sendToBank(userId, userName, action, amount, reason) {
     try {
         const response = await fetch(BANK_API_URL, {
@@ -24,7 +19,7 @@ async function sendToBank(userId, userName, action, amount, reason) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                action: action, // "earn" 또는 "spend"
+                action: action,
                 userId: userId,
                 amount: amount
             })
@@ -43,7 +38,6 @@ async function sendToBank(userId, userName, action, amount, reason) {
     }
 }
 
-// 3. 뚜봇 웹소켓 초기화 및 실시간 데이터 수신 처리
 function initChatDonationSystem() {
     chatWebSocket = new WebSocket(chatWsUri);
     
@@ -74,7 +68,6 @@ function initChatDonationSystem() {
 
                     let purpose = rcvData[1].split(':')[1];
                     
-                    // --- 채팅 규칙 처리 ---
                     if (purpose === 'chat') {
                         let chatInfo = JSON.parse(rcvData[2]);
                         let profile = JSON.parse(chatInfo.profile);
@@ -88,25 +81,20 @@ function initChatDonationSystem() {
                         let now = Date.now();
                         let expireTime = userChatCooldowns.get(userId) || 0;
 
-                        // 60초 쿨타임 검사
                         if (now >= expireTime) {
-                            // 쿨타임 통과: 갱신 후 은행에 1포인트 적립 요청
                             userChatCooldowns.set(userId, now + CHAT_COOLDOWN_MS);
                             sendToBank(userId, userName, "earn", 1, "채팅 참여 적립");
                         }
                     } 
-                    
-                    // --- 후원 규칙 처리 ---
                     else if (purpose === 'donation') {
                         let donateInfo = JSON.parse(rcvData[2]);
                         
                         let userId = donateInfo.userId || donateInfo.profile?.userId;
                         let userName = donateInfo.nickname;
-                        let rawAmount = donateInfo.donationAmount; // 후원 금액 (원 단위)
+                        let rawAmount = donateInfo.donationAmount;
 
                         if (!userId || !rawAmount) return;
 
-                        // 후원금액의 1/10 적립 (소수점 발생 시 내림 처리)
                         let earnPoints = Math.floor(rawAmount / 10);
 
                         if (earnPoints > 0) {
@@ -124,7 +112,6 @@ function initChatDonationSystem() {
     };
 }
 
-// 스크립트 로드 시 독립 사업 시스템 자동 가동
 window.addEventListener('DOMContentLoaded', () => {
     initChatDonationSystem();
 });
