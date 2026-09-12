@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>빙고 오버레이</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body { background-color: transparent; margin: 0; padding: 20px; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; }
+        
+        #bingoContainer { width: 600px; min-height: 740px; height: auto; background: rgba(0, 0, 0, 0.85); border-radius: 15px; padding: 20px; position: relative; display: none; box-sizing: border-box; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; color: white; margin-bottom: 15px; font-weight: bold; position: relative; height: 45px; }
+        
+        #overlay-title { 
+            font-family: 'Arial Black', sans-serif;
+            font-style: italic;
+            font-size: 32px; 
+            letter-spacing: 2px;
+            color: #ffffff;
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.7);
+        }
+        
+        .header-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+        }
+
+        .neon-box {
+            background: rgba(15, 15, 25, 0.9);
+            border: 2px solid #ff007f;
+            box-shadow: 0 0 14px #ff007f, inset 0 0 6px #ff007f;
+            padding: 6px 18px;
+            border-radius: 8px;
+        }
+        
+        #disp-subject {
+            color: #ffeb3b;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 0 8px #ffeb3b;
+            letter-spacing: 1px;
+        }
+
+        #scoreBoard { font-size: 22px; white-space: nowrap; }
+
+        #gridWrapper { position: relative; width: 100%; height: 480px; }
+        
+        .grid { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 8px; z-index: 5; }
+        
+        @keyframes cellFlip {
+            0% {
+                transform: perspective(600px) rotateY(0deg) scale(1);
+            }
+            50% {
+                transform: perspective(600px) rotateY(90deg) scale(1.15);
+            }
+            100% {
+                transform: perspective(600px) rotateY(360deg) scale(1);
+            }
+        }
+
+        .cell { background: #6c757d; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; background-image: repeating-linear-gradient(45deg, #6c757d 25%, #5a6268 25%, #5a6268 50%, #5a6268 50%, #6c757d 75%, #5a6268 75%, #5a6268 100%); background-size: 15px 15px; padding: 4px; box-sizing: border-box; overflow: hidden; }
+        .cell::after { content: "?"; color: white; font-size: 24px; position: absolute; }
+        
+        .cell.revealed { 
+            animation: cellFlip 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            background: #ffeb3b; 
+            background-image: none; 
+            box-shadow: 0 0 10px #ffeb3b; 
+        }
+        .cell.revealed.exact-dono { background: #ffb300; background-image: none; box-shadow: 0 0 10px #ffb300; }
+        .cell.revealed.exact-dono .cell-word { color: #222; }
+        .cell.revealed.exact-dono .cell-nick { color: #444; }
+
+        .cell.revealed.reveal-dono { background: #1e90ff; background-image: none; box-shadow: 0 0 10px #1e90ff; }
+        .cell.revealed.reveal-dono .cell-word { color: #fff; }
+        .cell.revealed.reveal-dono .cell-nick { color: #e0e0e0; }
+        
+        .cell.revealed::after { content: ""; }
+
+        .cell-word { font-size: 16px; font-weight: bold; color: transparent; max-width: 100%; word-break: break-all; }
+        .cell.revealed .cell-word { color: #333; }
+
+        .cell-nick { font-size: 11px; color: #555; font-weight: bold; margin-top: 2px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none; }
+        .cell.revealed .cell-nick { display: block; }
+
+        #lineCanvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            pointer-events: none; 
+            z-index: 10; 
+        }
+
+        .info-area { margin-top: 15px; color: white; font-size: 18px; line-height: 1.6; background: rgba(255,255,255,0.1); padding: 12px 15px; border-radius: 8px; }
+        .info-area span { color: #ffeb3b; font-weight: bold; }
+        #disp-cooldown-time, #disp-cooldown-users { color: #00d2ff; }
+
+        .reward-area { margin-top: 15px; background: rgba(255, 215, 0, 0.15); border: 2px solid #ffd700; padding: 12px; border-radius: 8px; color: white; font-size: 20px; font-weight: bold; text-align: center; text-shadow: 0 0 5px rgba(0,0,0,0.8); display: none; }
+        .reward-area span { color: #ffd700; font-size: 24px; }
+
+        #btn-toggle-result {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 90;
+            padding: 8px 14px;
+            background: #ffd700;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.6);
+            transition: background 0.2s;
+        }
+        #btn-toggle-result:hover {
+            background: #ffea79;
+        }
+
+        @keyframes firstBloodAction {
+            0% {
+                transform: translate(450px, -350px) scale(0.2) skew(-15deg);
+                opacity: 0;
+            }
+            15% {
+                transform: translate(-50%, -50%) scale(1.15) skew(-15deg);
+                opacity: 1;
+            }
+            18% {
+                transform: translate(-50%, -50%) scale(1) skew(-15deg);
+                opacity: 1;
+            }
+            89% {
+                transform: translate(-50%, -50%) scale(1) skew(-15deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-450px, 350px) scale(0.3) skew(-15deg);
+                opacity: 0;
+            }
+        }
+
+        #first-blood-popup {
+            display: none;
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1a0000 0%, #5c0000 50%, #d90000 100%);
+            border: 3px solid #ff3333;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.95), 0 0 60px rgba(139, 0, 0, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.5);
+            padding: 25px 50px;
+            border-radius: 0px;
+            clip-path: polygon(0% 15%, 7% 0%, 15% 15%, 25% 0%, 35% 15%, 48% 0%, 60% 15%, 72% 0%, 82% 15%, 93% 0%, 100% 15%, 98% 50%, 100% 85%, 93% 100%, 82% 85%, 72% 100%, 60% 85%, 48% 100%, 35% 85%, 25% 100%, 15% 85%, 7% 100%, 0% 85%, 2% 50%);
+            z-index: 200;
+            text-align: center;
+            color: white;
+            opacity: 0;
+        }
+        #first-blood-popup.show {
+            display: block;
+            animation: firstBloodAction 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+        #first-blood-popup h2 {
+            margin: 0;
+            font-size: 36px;
+            font-family: 'Arial Black', sans-serif;
+            font-style: italic;
+            color: #ffcc00;
+            text-shadow: 3px 3px 0px #000, -2px -2px 0px #000, 0 0 20px #ff0000;
+            letter-spacing: 3px;
+        }
+        #first-blood-popup .fb-nickname {
+            margin-top: 8px;
+            font-size: 30px;
+            font-weight: 900;
+            font-style: italic;
+            color: #ffffff;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+            letter-spacing: 1px;
+        }
+
+        #success-layer { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.92); border-radius: 15px; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; text-align: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        #success-layer h1 { color: #00ff73; font-size: 36px; margin-bottom: 10px; text-shadow: 0 0 15px rgba(0,255,115,0.5); }
+        
+        .achiever-box { font-size: 16px; margin: 4px 0; color: #fff; background: rgba(255,255,255,0.15); padding: 8px 12px; border-radius: 8px; width: 90%; line-height: 1.3; }
+        .achiever-box .nickname { color: #ffeb3b; font-weight: bold; font-size: 18px; }
+
+        .btn-view-board {
+            margin-top: 20px;
+            padding: 10px 24px;
+            background: #00ff73;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,255,115,0.4);
+            transition: background 0.2s;
+        }
+        .btn-view-board:hover {
+            background: #26ff8c;
+        }
+    </style>
+</head>
+<body>
+    <div id="bingoContainer">
+        <button id="btn-toggle-result" onclick="toggleSuccessView(true)">🏆 결과창 보기</button>
+
+        <div id="first-blood-popup">
+            <h2>FIRST BLOOD</h2>
+            <div class="fb-nickname" id="fb-nick-text">시청자</div>
+        </div>
+
+        <div id="success-layer">
+            <h1>[빙고 성공!!]</h1>
+            <div id="achievers-list"></div>
+            <button class="btn-view-board" onclick="toggleSuccessView(false)">빙고판 보기</button>
+        </div>
+
+        <div class="header">
+            <div id="overlay-title">BINGO</div>
+            <div class="header-center">
+                <div id="subject-area" class="neon-box" style="display: none;">
+                    <span id="disp-subject"></span>
+                </div>
+            </div>
+            <span id="scoreBoard">0 / 3 줄</span>
+        </div>
+        
+        <div id="gridWrapper">
+            <div class="grid" id="grid"></div>
+            <canvas id="lineCanvas"></canvas>
+        </div>
+        
+        <div class="info-area">
+            <div>
+                후원은 <span id="disp-dono">1000</span>치즈 (쿨타임없음)
+                <span id="reveal-dono-wrap" style="margin-left: 20px; display: none;">※무조건 정답공개 <span id="disp-reveal-dono"></span> 치즈</span>
+            </div>
+            <div>채팅 정답자 쿨타임 인원(<span id="disp-cooldown-time">60</span>초) : <span id="disp-cooldown-users">없음</span></div>
+        </div>
+
+        <div id="reward-box" class="reward-area">
+            🎁 보상 : <span id="disp-reward"></span>
+        </div>
+    </div>
+
+    <script src="./js/bingo_config.js"></script>
+    <script src="./js/bingo.js"></script>
+    <script>
+        const gridEl = document.getElementById('grid');
+        const canvas = document.getElementById('lineCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function renderBoardUI() {
+            gridEl.innerHTML = '';
+            document.getElementById('success-layer').style.display = 'none';
+            document.getElementById('btn-toggle-result').style.display = 'none';
+            document.getElementById('first-blood-popup').classList.remove('show');
+            document.getElementById('bingoContainer').style.display = 'block';
+            
+            // 캔버스 크기를 컨테이너와 일치시키기
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            document.getElementById('scoreBoard').innerText = `0 / ${targetBingoLines} 줄`;
+            document.getElementById('disp-dono').innerText = currentDonoAmount;
+            document.getElementById('disp-cooldown-time').innerText = currentCooldownSec;
+            
+            const revealWrap = document.getElementById('reveal-dono-wrap');
+            const dispRevealDono = document.getElementById('disp-reveal-dono');
+            if (currentRevealDonoAmount > 0) {
+                dispRevealDono.innerText = currentRevealDonoAmount;
+                revealWrap.style.display = 'inline';
+            } else {
+                revealWrap.style.display = 'none';
+            }
+
+            const subjectArea = document.getElementById('subject-area');
+            const dispSubject = document.getElementById('disp-subject');
+            if (currentSubject && currentSubject.trim() !== '') {
+                dispSubject.innerText = currentSubject;
+                subjectArea.style.display = 'block';
+            } else {
+                subjectArea.style.display = 'none';
+            }
+
+            const rewardBox = document.getElementById('reward-box');
+            const dispReward = document.getElementById('disp-reward');
+            if (currentReward && currentReward.trim() !== '') {
+                dispReward.innerText = currentReward;
+                rewardBox.style.display = 'block';
+            } else {
+                rewardBox.style.display = 'none';
+            }
+
+            bingoWords.forEach((word, index) => {
+                const div = document.createElement('div');
+                div.className = 'cell';
+                div.id = `cell-${index}`;
+                div.innerHTML = `<span class="cell-word">${word}</span><span class="cell-nick"></span>`;
+                gridEl.appendChild(div);
+            });
+        }
+
+        function hideOverlayUI() {
+            document.getElementById('bingoContainer').style.display = 'none';
+        }
+
+        function updateBingoUI(index, nick, word, type = 'normal') {
+            const cell = document.getElementById(`cell-${index}`);
+            if (cell) {
+                cell.classList.add('revealed');
+                if (type === 'reveal') {
+                    cell.classList.add('reveal-dono');
+                } else if (type === 'exact') {
+                    cell.classList.add('exact-dono');
+                }
+                const nickEl = cell.querySelector('.cell-nick');
+                if (nickEl) {
+                    nickEl.innerText = nick;
+                }
+            }
+        }
+
+        function showFirstBloodUI(nick) {
+            const popup = document.getElementById('first-blood-popup');
+            document.getElementById('fb-nick-text').innerText = nick;
+            
+            popup.classList.remove('show');
+            void popup.offsetWidth; 
+            popup.classList.add('show');
+
+            setTimeout(() => {
+                popup.classList.remove('show');
+            }, 1000);
+        }
+
+        function updateScoreUI() {
+            document.getElementById('scoreBoard').innerText = `${currentBingoCount} / ${targetBingoLines} 줄`;
+        }
+
+        function drawBingoLineUI(lineIndex) {
+            // 캔버스 크기 실시간 동기화 보장
+            if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+
+            const line = winningLines[lineIndex];
+            const firstCell = document.getElementById(`cell-${line[0]}`);
+            const lastCell = document.getElementById(`cell-${line[4]}`);
+
+            if (!firstCell || !lastCell) return;
+
+            let x1, y1, x2, y2;
+
+            if (lineIndex < 5) { // 가로 줄 (0~4)
+                x1 = firstCell.offsetLeft;
+                y1 = firstCell.offsetTop + firstCell.offsetHeight / 2;
+                x2 = lastCell.offsetLeft + lastCell.offsetWidth;
+                y2 = lastCell.offsetTop + lastCell.offsetHeight / 2;
+            } else if (lineIndex < 10) { // 세로 줄 (5~9)
+                x1 = firstCell.offsetLeft + firstCell.offsetWidth / 2;
+                y1 = firstCell.offsetTop;
+                x2 = lastCell.offsetLeft + lastCell.offsetWidth / 2;
+                y2 = lastCell.offsetTop + lastCell.offsetHeight;
+            } else if (lineIndex === 10) { // 대각선 1
+                x1 = firstCell.offsetLeft;
+                y1 = firstCell.offsetTop;
+                x2 = lastCell.offsetLeft + lastCell.offsetWidth;
+                y2 = lastCell.offsetTop + lastCell.offsetHeight;
+            } else if (lineIndex === 11) { // 대각선 2
+                x1 = firstCell.offsetLeft + firstCell.offsetWidth;
+                y1 = firstCell.offsetTop;
+                x2 = lastCell.offsetLeft;
+                y2 = lastCell.offsetTop + lastCell.offsetHeight;
+            }
+
+            const extension = 0; 
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            
+            if (length === 0) return;
+
+            const unitX = dx / length;
+            const unitY = dy / length;
+
+            // 오프셋 제거 및 정확한 셀 중심 좌표 반영
+            const startX = x1 - unitX * extension;
+            const startY = y1 - unitY * extension;
+            const endX = x2 + unitX * extension;
+            const endY = y2 + unitY * extension;
+
+            const animationDuration = 200;
+            let startTime = null;
+
+            function animateLine(timestamp) {
+                if (!startTime) startTime = timestamp;
+                let progress = (timestamp - startTime) / animationDuration;
+                if (progress > 1) progress = 1;
+
+                let currentX = startX + (endX - startX) * progress;
+                let currentY = startY + (endY - startY) * progress;
+
+                ctx.beginPath();
+                ctx.lineWidth = 10;
+                ctx.strokeStyle = "rgba(255, 0, 0, 0.85)";
+                ctx.lineCap = "round";
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(currentX, currentY);
+                ctx.stroke();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateLine);
+                }
+            }
+
+            requestAnimationFrame(animateLine);
+        }
+
+        function triggerSuccessUI(achievers) {
+            const successLayer = document.getElementById('success-layer');
+            const listDiv = document.getElementById('achievers-list');
+            
+            let htmlContent = achievers.map(achv => {
+                let parts = achv.split(':');
+                let title = parts[0] ? parts[0].trim() : '';
+                let name = parts[1] ? parts[1].trim() : '';
+                return `<div class="achiever-box">${title} :<br><span class="nickname">${name}</span></div>`;
+            }).join('');
+            
+            let nickCounts = {};
+            document.querySelectorAll('.cell.revealed').forEach(cell => {
+                let nick = cell.querySelector('.cell-nick').innerText.trim();
+                if (nick) {
+                    nickCounts[nick] = (nickCounts[nick] || 0) + 1;
+                }
+            });
+
+            let topNicks = [];
+            let maxCount = 0;
+            for (let nick in nickCounts) {
+                if (nickCounts[nick] > maxCount) {
+                    maxCount = nickCounts[nick];
+                    topNicks = [nick];
+                } else if (nickCounts[nick] === maxCount) {
+                    topNicks.push(nick);
+                }
+            }
+
+            if (topNicks.length > 0) {
+                let topNickStr = topNicks.join(', ');
+                htmlContent += `<br><br><div class="achiever-box" style="background: rgba(0, 255, 115, 0.15); border: 1px solid #00ff73;">최다정답자 :<br><span class="nickname">${topNickStr} (${maxCount}개)</span></div>`;
+            }
+
+            listDiv.innerHTML = htmlContent;
+            successLayer.style.display = 'flex';
+            document.getElementById('btn-toggle-result').style.display = 'none';
+
+            let end = Date.now() + 3000;
+            (function frame() {
+                confetti({ particleCount: 7, angle: 60, spread: 55, origin: { x: 0 } });
+                confetti({ particleCount: 7, angle: 120, spread: 55, origin: { x: 1 } });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }
+
+        function toggleSuccessView(showResult) {
+            const successLayer = document.getElementById('success-layer');
+            const toggleBtn = document.getElementById('btn-toggle-result');
+
+            if (showResult) {
+                successLayer.style.display = 'flex';
+                toggleBtn.style.display = 'none';
+            } else {
+                successLayer.style.display = 'none';
+                toggleBtn.style.display = 'block';
+            }
+        }
+
+        function updateCooldownUI(activeUsersStr) {
+            document.getElementById('disp-cooldown-users').innerText = activeUsersStr ? activeUsersStr : '없음';
+        }
+
+        window.onload = function() {
+            initBingoSystem();
+        };
+    </script>
+</body>
+</html>

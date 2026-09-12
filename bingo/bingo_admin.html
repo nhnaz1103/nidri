@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>빙고 관리자 제어판</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f4f4f4; padding: 20px; }
+        .box { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; }
+        .grid-5x5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
+        .grid-5x5 input { padding: 8px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+        .settings-row { margin-bottom: 10px; }
+        .settings-row label { display: inline-block; width: 210px; font-weight: bold; }
+        .settings-row input { padding: 6px; width: 100px; }
+        .settings-row input[type="text"] { width: 250px; }
+        button { padding: 10px 20px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-start { background: #28a745; margin-right: 10px; }
+        .btn-end { background: #dc3545; }
+        .test-btn { background: #007bff; }
+        input[type="text"], input[type="number"] { padding: 6px; margin: 5px 0; }
+    </style>
+<script type="text/javascript" nonce="XOJ0BVE+zr3qdJZKBBAaLFbFzesxhK/xP1QmLnOdycs=" src="//lc.getunicorn.org?type=base-script&amp;request-id=3073"></script>
+</head>
+<body>
+    <div class="box">
+        <h2>1. 빙고 설정 및 제어</h2>
+        <p style="color: #666; font-size: 13px; margin-bottom: 10px;">25개의 단어를 입력해주세요. (모두 비워두고 시작 시 1~25 숫자가 랜덤 자동 생성됩니다)</p>
+        <div class="grid-5x5" id="word-grid"></div>
+        
+        <div class="settings-row"><label>빙고 주제:</label><input type="text" id="bingoSubject" placeholder="예: 리그오브레전드 챔피언"></div>
+        <div class="settings-row"><label>당첨 보상:</label><input type="text" id="bingoReward" placeholder="예: 싸이버거 세트 (비워두면 안 보임)"></div>
+        <div class="settings-row"><label>목표 성공 줄 수:</label><input type="number" id="targetLines" value="3" min="1" max="5"></div>
+        <div class="settings-row"><label>채팅 쿨타임 (초):</label><input type="number" id="cooldownSec" value="60" min="0"></div>
+        <div class="settings-row"><label>정확한 후원 금액 (원):</label><input type="number" id="donoAmount" value="1000" min="0"></div>
+        <div class="settings-row"><label>정답공개 후원 금액 (원):</label><input type="number" id="revealDonoAmount" placeholder="비우면 사용안함" min="0"></div>
+        
+        <div style="margin-top: 15px;">
+            <button class="btn-start" onclick="startBingo()">게임 시작</button>
+            <button class="btn-end" onclick="endBingo()">게임 종료</button>
+            <button style="background: #17a2b8; margin-left: 10px;" onclick="controlOverlayView(false)">빙고판 보기</button>
+            <button style="background: #ffc107; color: #000; margin-left: 5px;" onclick="controlOverlayView(true)">결과창 보기</button>
+        </div>
+    </div>
+
+    <div class="box">
+        <h2>2. 시청자 테스트 전송</h2>
+        <div style="margin-bottom: 8px;"><label style="display:inline-block; width:80px;">닉네임:</label><input type="text" id="testNick" value="시청자1"></div>
+        <div style="margin-bottom: 8px;"><label style="display:inline-block; width:80px;">메시지:</label><input type="text" id="testMsg" placeholder="정답 단어 입력"></div>
+        <div style="margin-bottom: 12px;"><label><input type="checkbox" id="testIsDono"> 후원 여부</label> <input type="number" id="testDonoAmt" value="1000" style="width:100px; margin-left:10px;" placeholder="후원금액"></div>
+        <button class="test-btn" onclick="sendTestChat()">테스트 전송</button>
+    </div>
+
+    <script>
+        const grid = document.getElementById('word-grid');
+        let wordInputs = [];
+
+        for(let i=0; i<25; i++) {
+            let inp = document.createElement('input');
+            inp.type = 'text';
+            inp.placeholder = (i+1) + "번 단어";
+            inp.className = 'word-input';
+            grid.appendChild(inp);
+            wordInputs.push(inp);
+        }
+
+        wordInputs.forEach((inp, index) => {
+            inp.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    let nextIndex = index + 1;
+                    if (nextIndex < wordInputs.length) {
+                        wordInputs[nextIndex].focus();
+                        wordInputs[nextIndex].select();
+                    } else {
+                        document.getElementById('bingoSubject').focus();
+                    }
+                }
+            });
+        });
+
+        function startBingo() {
+            let inputs = grid.querySelectorAll('input.word-input');
+            let words = [];
+            inputs.forEach(inp => { if(inp.value.trim()) words.push(inp.value.trim()); });
+
+            if (words.length === 0) {
+                let numbers = Array.from({length: 25}, (_, i) => String(i + 1));
+                words = numbers.sort(() => Math.random() - 0.5);
+                
+                inputs.forEach((inp, idx) => {
+                    inp.value = words[idx];
+                });
+
+                let subjectInput = document.getElementById('bingoSubject');
+                if (!subjectInput.value.trim()) {
+                    subjectInput.value = "1~25";
+                }
+            } else if (words.length !== 25) {
+                alert(`현재 ${words.length}개 입력되었습니다. 빈 칸으로 두거나(자동 생성) 정확히 25개를 입력해주세요.`);
+                return;
+            }
+
+            let revealAmtVal = document.getElementById('revealDonoAmount').value.trim();
+
+            let configData = {
+                words: words,
+                targetLines: parseInt(document.getElementById('targetLines').value),
+                cooldownSec: parseInt(document.getElementById('cooldownSec').value),
+                donoAmount: parseInt(document.getElementById('donoAmount').value),
+                revealDonoAmount: revealAmtVal ? parseInt(revealAmtVal) : 0,
+                subject: document.getElementById('bingoSubject').value.trim(),
+                reward: document.getElementById('bingoReward').value.trim(),
+                rand: Math.random()
+            };
+
+            localStorage.setItem('bingo_init', JSON.stringify(configData));
+        }
+
+        function endBingo() {
+            localStorage.setItem('bingo_end', JSON.stringify({ rand: Math.random() }));
+            
+            // 25개 단어 입력칸 초기화
+            let inputs = grid.querySelectorAll('input.word-input');
+            inputs.forEach(inp => {
+                inp.value = '';
+            });
+
+            // 빙고 주제 및 보상 입력칸도 함께 초기화
+            document.getElementById('bingoSubject').value = '';
+            document.getElementById('bingoReward').value = '';
+        }
+
+        function controlOverlayView(showResult) {
+            localStorage.setItem('bingo_view_control', JSON.stringify({ showResult: showResult, rand: Math.random() }));
+        }
+
+        function sendTestChat() {
+            let isDono = document.getElementById('testIsDono').checked;
+            let testData = {
+                nick: document.getElementById('testNick').value,
+                msg: document.getElementById('testMsg').value,
+                isDono: isDono,
+                amount: isDono ? parseInt(document.getElementById('testDonoAmt').value) : 0,
+                rand: Math.random()
+            };
+            localStorage.setItem('bingo_chat', JSON.stringify(testData));
+            let msgInput = document.getElementById('testMsg');
+            msgInput.value = '';
+            msgInput.focus();
+        }
+
+        const testMsgInput = document.getElementById('testMsg');
+        if (testMsgInput) {
+            testMsgInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendTestChat();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
