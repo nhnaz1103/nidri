@@ -1,24 +1,6 @@
-
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>포인트 적립 백그라운드 모듈</title>
-</head>
-<body>
-    <script src="../ddubot_config.js"></script>
-    <script src="./chat_donation.js"></script>
-</body>
-</html>
-
-
----
-
-### `chat_donation/chat_donation.js`
-```javascript
-const BANK_API_URL = "https://admirable-custard-8f7713.netlify.app/api/bank";
+const BANK_API_URL = "[https://admirable-custard-8f7713.netlify.app/api/bank](https://admirable-custard-8f7713.netlify.app/api/bank)";
 let chatWebSocket = null;
-const chatWsUri = "wss://chzzk-data.ddutto.com/api/dataSocket/?EIO=4&transport=websocket";
+const chatWsUri = "wss://[chzzk-data.ddutto.com/api/dataSocket/?EIO=4&transport=websocket](https://chzzk-data.ddutto.com/api/dataSocket/?EIO=4&transport=websocket)";
 const chatScope = ['chat', 'donation'];
 
 const chatAuthState = {
